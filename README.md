@@ -66,7 +66,7 @@ Outputs will be saved in `evaluation_output`.
 
 For applying an edit on a set, use the average image as a template (located in `atlas_vis/atlas_space_average_image.png` after running `evaluate_model.py`). It is recommended that the RGBA edit image will be of a larger resolution than the average image (e.g., 256x256) for obtaining higher edit quality.
 ```
-python propagate_edit.py --path_to_trained_model data/image_set_name/model_checkpoint_file.pt --label_path path/to/edit/image
+python propagate_edit.py --checkpoint_path data/image_set_name/model_checkpoint_file.pt --label_path path/to/edit/image
 ```
 Outputs will be saved in `visuals_and_edits`.
 <br>Sample edits can be found in the downloaded sample sets under `data/<images set 1>/sample_edits`.
