@@ -30,7 +30,7 @@ conda activate neural-congealing
 ### Download Sample Image Sets
 Download sample image sets and their trained models:
 ```
-gdown https://drive.google.com/uc?id=12IgdadDuN2aEKN5b9JizWAXPPSTJUAMc&export=download
+gdown https://drive.google.com/uc?id=17tOao9v8QfonwvjCXPihJN5FA55PD39U&export=download
 unzip data.zip
 ```
 
