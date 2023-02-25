@@ -76,7 +76,7 @@ class AtlasLoss(torch.nn.Module):
         mask = oob_mask.permute(0, 2, 3, 1)
         return (id_loss * mask).sum() / mask.sum()
 
-    # based on NLA's code
+    # based on https://github.com/ykasten/layered-neural-atlases/blob/19aa32dd0cf0de7e92d279fea82844f28a15d4a0/loss_utils.py#L59
     def rigidity_loss(self, final_grid, mask_for_loss, rig_h=1):
         # rig_h: derivative amount (in pixels)
         assert final_grid.size(-1) == 2

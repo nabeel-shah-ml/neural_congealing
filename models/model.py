@@ -36,16 +36,18 @@ class AtlasModel(torch.nn.Module):
     def apply_bw_warp(self, input_image, bw_sim_mat, flow, padding_mode, img_size=None):
         return self.stn.apply_bw_warp(input_image, bw_sim_mat, flow, padding_mode, img_size=img_size)
 
-    def congeal_points(self, imgA, pointsA, normalize_input_points=True, unnormalize_output_points=False):
-        return self.stn.stn.congeal_points(imgA, pointsA, output_resolution=None, iters=1, normalize_input_points=normalize_input_points,
-                                           unnormalize_output_points=unnormalize_output_points, return_full=False)
+    def congeal_points(self, img, points, normalize_input_points=True, unnormalize_output_points=False,
+                       output_resolution=None, return_full=False):
+        return self.stn.congeal_points(img, points, normalize_input_points=normalize_input_points,
+                                       unnormalize_output_points=unnormalize_output_points,
+                                       output_resolution=output_resolution, return_full=return_full)
 
-    def uncongeal_points(self, imgB, points_congealed, samp_grid=None, unnormalize_output_points=True, normalize_input_points=False):
-        return self.stn.stn.uncongeal_points(imgB, points_congealed, gridB=samp_grid, return_congealed_img=False,
-                                             unnormalize_output_points=unnormalize_output_points, normalize_input_points=normalize_input_points)
-
-    def transfer_points(self, imgA, imgB, pointsA):
-        return self.stn.stn.transfer_points(imgA, imgB, pointsA)
+    def uncongeal_points(self, img, points_congealed, samp_grid=None, unnormalize_output_points=True,
+                         normalize_input_points=False, output_resolution=None, return_congealed_img=False):
+        return self.stn.uncongeal_points(img, points_congealed, samp_grid=samp_grid,
+                                         unnormalize_output_points=unnormalize_output_points,
+                                         normalize_input_points=normalize_input_points,
+                                         output_resolution=output_resolution, return_congealed_img=return_congealed_img)
 
     def get_atlas_params(self):
         atlas_keys = self.atlas_keys  # [emb, h, w]

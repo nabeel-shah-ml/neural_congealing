@@ -106,6 +106,18 @@ class STNWrapper(nn.Module):
     def apply_bw_warp(self, input_features, bw_sim_mat, flow, padding_mode, img_size=None):
         return self.stn.apply_bw_warp(input_features, bw_sim_mat, flow, padding_mode, img_size=img_size)
 
+    def congeal_points(self, img, points, normalize_input_points=True, unnormalize_output_points=False,
+                       output_resolution=None, return_full=False):
+        return self.stn.congeal_points(img, points, normalize_input_points=normalize_input_points,
+                                       unnormalize_output_points=unnormalize_output_points,
+                                       output_resolution=output_resolution, return_full=return_full)
+
+    def uncongeal_points(self, img, points_congealed, samp_grid=None, unnormalize_output_points=True, normalize_input_points=False,
+                         output_resolution=None, return_congealed_img=False):
+        return self.stn.uncongeal_points(img, points_congealed, gridB=samp_grid,
+                                         unnormalize_output_points=unnormalize_output_points, normalize_input_points=normalize_input_points,
+                                         output_resolution=output_resolution, return_congealed_img=return_congealed_img)
+
     def add_stn_flow_to_training(self):
         self.with_flow = True
         requires_grad(self.stn.stns[self.stn.transforms.index('flow')], True)
@@ -182,8 +194,8 @@ class ComposedSTN(nn.Module):
                           output_resolution=output_resolution_t, pack=True,
                           padding_mode=padding_mode, output_final_congealed_image=return_final_congealed_image, **stn_forward_kwargs)
             out, all_transformations = stn_out
-            grid, flow_or_matrix, affine_params = all_transformations
-            transformations.extend([grid, flow_or_matrix, affine_params])
+            grid, flow_or_matrix, grid_or_affine_params = all_transformations
+            transformations.extend([grid, flow_or_matrix, grid_or_affine_params])
 
             # TODO: Currently, flow --> similarity and flow --> flow is not supported
             if not sim_only and i == 0:  # detach STNsim from STNflow
@@ -428,16 +440,16 @@ class SpatialTransformer(nn.Module):
             out = self.final_linear(out)  # [batch, 512]
 
         output_resolution = output_resolution if output_resolution is not None else self.stn_in_size
-        out, grid, M, bw_mat_params = self.warp_head(source_pixels, out, output_resolution=output_resolution, base_warp=base_warp,
+        out, grid, M, grid_or_bw_mat_params = self.warp_head(source_pixels, out, output_resolution=output_resolution, base_warp=base_warp,
                                            padding_mode=padding_mode, output_final_congealed_image=output_final_congealed_image)
         if pack:  # Return everything
-            return out, (grid, M, bw_mat_params)
+            return out, (grid, M, grid_or_bw_mat_params)
         else:  # TODO: could make argument-packing more elegant:
             rtn = [out]
             if return_warp:
                 rtn.append(grid)
             if return_flow:
-                rtn.append((grid, M, bw_mat_params))
+                rtn.append((grid, M, grid_or_bw_mat_params))
             if len(rtn) == 1:
                 rtn = rtn[0]
             return rtn

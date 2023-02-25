@@ -1,6 +1,7 @@
-# Code taken from GANgealing (https://github.com/wpeebles/gangealing/tree/main/utils/vis_tools)
+# Code taken from GANgealing (https://github.com/wpeebles/gangealing/tree/main/utils/vis_tools/helpers.py)
 import torch
-from torchvision.utils import make_grid
+from torchvision import transforms
+from torchvision.utils import make_grid, save_image
 import numpy as np
 from PIL import Image, ImageColor
 import moviepy.editor
@@ -11,17 +12,6 @@ from utils_atlas.splat2d_cuda import splat2d
 from utils_atlas.vis_tools.laplacian_blending import LaplacianBlender
 from tqdm import tqdm
 import os
-
-# These are the colorscales for visualizing correspondences in difference clusters.
-# The i-th entry corresponds to the i-th cluster. We don't use these for standard, unimodal congealing.
-CLUSTER_COLORSCALES = ['plasma', 'plotly3', 'viridis', 'cividis']
-
-
-def get_colorscale(cluster=None):
-    if cluster is None or cluster >= len(CLUSTER_COLORSCALES):
-        return 'turbo'  # default colorscale for unimodal congealing
-    else:
-        return CLUSTER_COLORSCALES[cluster]
 
 
 def normalize(images, amin=None, amax=None, inplace=False):
@@ -65,6 +55,41 @@ def save_video(frames, fps, out_path, filenames=False, codec='libx264', input_is
 
     video = moviepy.editor.VideoClip(make_frame, duration=duration)
     video.write_videofile(out_path, fps=fps, codec=codec, bitrate='50M')
+
+
+@torch.inference_mode()
+def load_dense_label(path, resolution=None, use_griddata=False, device='cuda'):
+    """
+    This function loads an RGBA image and returns the coordinates of pixels that have a non-zero alpha channel value.
+    For augmented reality applications, this function can also return the RGB colors of the image (load_colors=True).
+    :param path: Path to the RGBA image file
+    :param resolution: Resolution to resize the RGBA image to (default: no resizing)
+    :param use_griddata: If True, will prepare point as required by griddata (different than when using splat).
+    :param device: Device to load points and colors to
+    :return: (1, P, 2) tensor of pixel coordinates, (1, P, 3) tensor of corresponding RGB colors, (1, P, 1) tensor of
+              corresponding non-zero alpha channel values, and the label image to propagate. The pixel coordinates are
+              stored in (x, y) format and are integers in the range [0, W-1] (x coordinates) or [0, Y-1] (y coordinates).
+              RGB values are in [-1, 1] and alpha channel values are in [0, 1].
+    """
+    label = transforms.ToTensor()(Image.open(path)).to(device)  # (4, H, W) RGBA format
+    label = label.unsqueeze_(0)  # (1, 4, H, W)
+    if label.size(1) == 3:
+        label = torch.cat([label, torch.ones_like(label[:, :1])], dim=1)
+    if resolution is not None and resolution != label.size(2):  # optionally resize the label:
+        label = torch.nn.functional.interpolate(label.float(), scale_factor=resolution / label.size(2), mode='bilinear')
+    assert label.size(1) == 4
+
+    if use_griddata:
+        i, j = torch.where(label[0, 3] >= 0)  # griddata requires all points
+    else:
+        i, j = torch.where(label[0, 3] > 0)  # i indexes height, j indexes width
+    points = torch.stack([j, i], -1)  # (P, 2); points are stored in (x, y) format
+    points = points.unsqueeze_(0)  # (1, P, 2)
+
+    image = label.float()  # (1, 4, H, W)
+    alpha_channel = image[:, 3:4, i, j].permute(0, 2, 1)  # (1, P, 1), [0, 1]
+    colors = image[:, :3, i, j].permute(0, 2, 1)  # (1, P, 3), [0, 1]
+    return points, colors, alpha_channel, label
 
 
 def get_plotly_colors(num_points, colorscale):

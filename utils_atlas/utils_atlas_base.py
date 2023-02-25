@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn
 import torch.nn.functional as F
+from scipy.interpolate import griddata
 from sklearn.decomposition import PCA
 from torchvision import transforms
 from torchvision.utils import make_grid
@@ -115,21 +116,21 @@ def calculate_fw_matrix(affine_params):
     def construct_matrix(N, cos_rot, sin_rot, shift_x, shift_y, scale=1.):
         matrix = [scale * cos_rot, -scale * sin_rot, shift_x,
                   scale * sin_rot, scale * cos_rot, shift_y]
-        matrix = torch.stack(matrix, dim=2)  # (N, 1, 6)
-        matrix = matrix.reshape(N, 1, 2, 3)  # (N, 1, 2, 3)
+        matrix = torch.cat(matrix, dim=1)  # (N, 6)
+        matrix = matrix.reshape(N, 2, 3)  # (N, 2, 3)
         return matrix
 
     rot = affine_params[:, 0].unsqueeze(-1)  # rot is after tanh() * pi
-    scale = affine_params[:, 1].unsqueeze(-1).unsqueeze(-1)  # scale is after exp
+    scale = affine_params[:, 1].unsqueeze(-1)  # scale is after exp
     shift_x = affine_params[:, 2].unsqueeze(-1)
     shift_y = affine_params[:, 3].unsqueeze(-1)
     cos_rot = torch.cos(rot)  # [N, 1]
     sin_rot = torch.sin(rot)
-    backward_mat_noS = construct_matrix(affine_params.shape[0], 1, cos_rot, sin_rot, shift_x, shift_y)
-    R_mat = backward_mat_noS[:, 0, :, :2]  # [N, 2, 2]
-    txty = backward_mat_noS[:, 0, :, 2][..., None]  # [N, 2, 1]
+    backward_mat_noS = construct_matrix(affine_params.shape[0], cos_rot, sin_rot, shift_x, shift_y)
+    R_mat = backward_mat_noS[:, :, :2]  # [N, 2, 2]
+    txty = backward_mat_noS[:, :, 2][..., None]  # [N, 2, 1]
     forward_matrix = (
-            (1 / scale) * torch.cat((R_mat.permute(0, 2, 1), -R_mat.permute(0, 2, 1) @ txty), dim=-1))  # (N, 2, 3)
+            (1 / scale.unsqueeze(-1)) * torch.cat((R_mat.permute(0, 2, 1), -R_mat.permute(0, 2, 1) @ txty), dim=-1))  # (N, 2, 3)
     return forward_matrix
 
 
@@ -141,6 +142,15 @@ def plot_images_grid(images_tensor, nrow=1, padding=3, pad_value=1, split=False,
         images_collection_tensor = images_tensor
     image_grid = make_grid(images_collection_tensor, nrow=nrow, padding=padding, pad_value=pad_value, **grid_kwargs)
     return image_grid[None, ...]
+
+
+def apply_griddata(input_image, upoints, edit_image_points_rgba, out_indices):
+    propagated_edit = griddata(upoints, edit_image_points_rgba, (out_indices[:, 1], out_indices[:, 0]), method='linear')
+    propagated_edit_t = transforms.ToTensor()(propagated_edit).reshape(1, input_image.shape[-2], input_image.shape[-1], 4).permute(0, 3, 1, 2)
+    propagated_edit_t[propagated_edit_t.isnan()] = 0.
+    a = propagated_edit_t[:, 3].unsqueeze(0)
+    edited_image = input_image * (1 - a) + a * propagated_edit_t[:, :3]
+    return edited_image
 
 
 def upload_trained_model_and_data(checkpoint_path, atlas_model_module, dataset_module, device, eval_mode=True):

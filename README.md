@@ -2,7 +2,7 @@
 ## <a href="https://neural-congealing.github.io/" target="_blank">Project Page</a> | <a href="https://arxiv.org/abs/2302.03956" target="_blank">Paper</a>
 
 
-This repository contains the official  implementation for the paper "Neural Congealing: Aligning Images to a Joint Semantic Atlas".
+This repo contains the official PyTorch implementation of the paper "Neural Congealing: Aligning Images to a Joint Semantic Atlas".
 
 
 
@@ -30,7 +30,7 @@ conda activate neural-congealing
 ### Download Sample Image Sets
 Download sample image sets and their trained models:
 ```
-gdown https://drive.google.com/uc?id=1rHQfKQ89aOKi9NSqt4pL51UEFpUZ7b6d&export=download
+gdown https://drive.google.com/uc?id=12IgdadDuN2aEKN5b9JizWAXPPSTJUAMc&export=download
 unzip data.zip
 ```
 
@@ -42,10 +42,12 @@ neural_congealing
 │   ├── <images set 1>  # name of image set
 │   │     ├── images
 │   │     ├── images_cosegmentation
+│   │     ├── sample_edits
 │   │     └── checkpoint_epoch_<num>.pt
 │   ├── <images set 2>
 │   │     ├── images
 │   │     ├── images_cosegmentation
+│   │     ├── sample_edits
 │   │     └── checkpoint_epoch_<num>.pt
 │   ├── ...
 │   └── checkerboard_gray_256.png
@@ -60,6 +62,14 @@ python evaluate_model.py --checkpoint_path data/image_set_name/checkpoint_epoch_
 ```
 Outputs will be saved in `evaluation_output`.
 
+## Editing
+
+For applying an edit on a set, use the average image as a template (located in `atlas_vis/atlas_space_average_image.png` after running `evaluate_model.py`). It is recommended that the RGBA edit image will be of a larger resolution than the average image (e.g., 256x256) for obtaining higher edit quality.
+```
+python python propagate_edit.py --path_to_trained_model data/image_set_name/model_checkpoint_file.pt --label_path path/to/edit/image
+```
+Outputs will be saved in `visuals_and_edits`.
+<br>Sample edits can be found in the downloaded sample sets under `data/<images set 1>/sample_edits`.
 
 
 ## Training
@@ -101,7 +111,6 @@ Intermediate results will be saved to `results` during training. The frequency o
 
 ## Coming soon
 - [ ] More sample sets
-- [ ] Editing scripts
 - [ ] PCK-Transfer evaluation
 
 ## Acknowledgements

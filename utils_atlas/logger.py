@@ -9,7 +9,6 @@ import torch
 import wandb
 from PIL import Image
 from matplotlib import pyplot as plt, cm
-from scipy.interpolate import griddata
 from sklearn.decomposition import PCA
 from torchvision import transforms
 from torchvision.io import write_video
@@ -18,7 +17,7 @@ from tqdm import tqdm
 
 from models.spatial_transformers.spatial_transformer import SpatialTransformer
 from .utils_atlas_base import tensor2im, tensor2numpy, get_keys_loss_func, apply_pca, calculate_fw_matrix, \
-    plot_images_grid
+    plot_images_grid, apply_griddata
 from .vis_tools.helpers import splat_points
 
 
@@ -316,7 +315,8 @@ class DataLogger:
                                                  samp_grid=final_sampling_grid.detach(), normalize_input_points=False)  # [num images, pnts, 2]
                 curr_colors_atlas_letters, curr_alpha_channel_atlas_letters = colors_atlas_letters, alpha_channel_atlas_letters
                 if self.config["use_griddata"]:
-                    propagated_edit_img = self.apply_griddata(input_image, upoints, curr_colors_atlas_letters, curr_alpha_channel_atlas_letters)
+                    letters_rgba = torch.cat((curr_colors_atlas_letters, curr_alpha_channel_atlas_letters), dim=-1).cpu().numpy()[0]
+                    propagated_edit_img = apply_griddata(input_image.cpu(), upoints.cpu().numpy()[0], letters_rgba, self.out_indices)
                 else:
                     propagated_edit_img = splat_points(input_image, upoints, sigma=1.0, opacity=0.9, colorscale='plasma',
                                                    colors=curr_colors_atlas_letters, alpha_channel=curr_alpha_channel_atlas_letters)
@@ -386,15 +386,6 @@ class DataLogger:
         evaluation_data[f"congealing/congealing_images_grid"] = [wandb.Image(tensor2im(mapping_images_grid))] if log_to_wandb else mapping_images_grid
 
         return evaluation_data
-
-    def apply_griddata(self, input_image, upoints, colors_atlas_letters, alpha_channel_atlas_letters):
-        colors_alpha_cpu_np = torch.cat((colors_atlas_letters, alpha_channel_atlas_letters), dim=-1).cpu().numpy()[0]
-        propagated_edit = griddata(upoints.cpu().numpy()[0], colors_alpha_cpu_np, (self.out_indices[:, 1], self.out_indices[:, 0]), method='linear')
-        propagated_edit_t = transforms.ToTensor()(propagated_edit).reshape(1, input_image.shape[-2], input_image.shape[-1], 4).permute(0, 3, 1, 2)
-        propagated_edit_t[propagated_edit_t.isnan()] = 0.
-        a = propagated_edit_t[:, 3].unsqueeze(0)
-        propagated_edit_img = input_image.cpu() * (1 - a) + a * propagated_edit_t[:, :3]
-        return propagated_edit_img
 
     def save_locally(self, log_data, curr_batch_idx, epoch):
         if curr_batch_idx <= 0 and epoch % self.config["log_images_freq"] == 0:
